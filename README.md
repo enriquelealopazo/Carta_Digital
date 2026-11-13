@@ -1,4 +1,4 @@
-# Carta digital · Arica
+# Carta_Digital · Arica
 
 Cartas digitales con pedido directo a WhatsApp para negocios de Arica.
 
