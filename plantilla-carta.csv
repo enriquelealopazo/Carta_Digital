@@ -1,0 +1,8 @@
+categoria,id,nombre,descripcion,precio,emoji,etiqueta,top,agotado,agregados
+Sánguches,s1,Chacarero,"Carne mechada, porotos verdes, tomate y ají verde en pan frica.",7900,🥪,hot,1,no,si
+Sánguches,s2,Italiano XL,"Lomo a la plancha, palta, tomate y mayo casera.",7900,🥑,,2,no,si
+Sánguches,s3,Barros Luco,"Lomo a la plancha con queso fundido.",7500,🧀,,,no,si
+Completos,c1,Completo italiano,"Vienesa, palta, tomate y mayo.",3500,🌭,,3,no,si
+Completos,c2,As dinámico,"Churrasco, palta, tomate, mayo y americana.",4900,🌭,new,,si,si
+Para compartir,p2,Chorrillana para 2,"Papas, carne, cebolla caramelizada y huevo.",9900,🍳,hot,4,no,no
+Bebidas,b1,Jugo natural,"Mango, frutilla o maracuyá. 500 ml.",2900,🥭,,,no,no
