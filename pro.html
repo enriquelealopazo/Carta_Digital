@@ -162,6 +162,11 @@ input.f:focus,textarea.f:focus{outline:none;border-color:var(--brand)}
 .send{display:flex;justify-content:center;align-items:center;gap:10px;margin-top:16px;background:var(--wa);color:#fff;text-decoration:none;padding:17px;border-radius:18px;font:700 16.5px Inter;box-shadow:0 12px 24px rgba(37,211,102,.35)}
 .send.off{opacity:.4;pointer-events:none;box-shadow:none}
 .hint{font-size:12.5px;color:var(--muted);text-align:center;margin-top:10px}
+.live.off{background:#ff5d5d;box-shadow:none;animation:none}
+.closed{margin:16px 18px 0;border-radius:18px;padding:14px 16px;background:#2a1f18;color:#fff;display:none;gap:12px;align-items:center}
+.closed.on{display:flex}
+.closed b{font:800 16px "Bricolage Grotesque";display:block}
+.closed span{font-size:13px;color:#e3d3c1}
 
 /* transferencia */
 .bank{margin-top:10px;border-radius:16px;background:#f6f1ff;border:1.5px solid #ddd0ff;padding:14px;display:none}
@@ -215,7 +220,7 @@ input.f:focus,textarea.f:focus{outline:none;border-color:var(--brand)}
       </div>
     </div>
     <div class="meta">
-      <span><i class="live"></i><b id="openTxt"></b></span>
+      <span><i class="live" id="liveDot"></i><b id="openTxt"></b></span>
       <span id="hoursTxt"></span>
       <span id="etaTxt"></span>
       <a id="mapLink" href="#" target="_blank" rel="noopener">📍 Cómo llegar</a>
@@ -226,6 +231,8 @@ input.f:focus,textarea.f:focus{outline:none;border-color:var(--brand)}
 <div class="wrap">
   <!-- ================= PROMO ================= -->
   <div class="promo" id="promo"></div>
+
+  <div class="closed" id="closedBox"><span style="font-size:30px">🌙</span><div><b>Ahora estamos cerrados</b><span id="closedSub"></span></div></div>
 
   <!-- ================= SEARCH ================= -->
   <div class="search">
@@ -325,8 +332,13 @@ const NEGOCIO = {
   iniciales: "SP",
   bajada: "Sánguches XL, completos y jugos naturales · Arica",
   whatsapp: "56964773098",                 // código país + número, sin + ni espacios
-  horario: "Lun–Sáb 12:00–23:00",
-  abierto: "Abierto ahora",
+  // Horario por día (0 = domingo … 6 = sábado). Varios tramos: [["12:00","16:00"],["19:00","23:30"]]
+  // Si cierra después de medianoche, escribe el cierre tal cual: ["19:00","02:00"]
+  horario: {
+    1: [["12:00","23:00"]], 2: [["12:00","23:00"]], 3: [["12:00","23:00"]],
+    4: [["12:00","23:00"]], 5: [["12:00","23:00"]], 6: [["12:00","23:00"]], 0: []
+  },
+  zonaHoraria: "America/Santiago",
   tiempo: "⏱ 20–30 min",
   mapa: "https://maps.google.com/?q=Arica,Chile",
   delivery: 2000,
@@ -378,8 +390,43 @@ let mode = "Retiro en local", pay = "Efectivo";
 $("#logo").textContent = NEGOCIO.iniciales;
 $("#bizName").textContent = NEGOCIO.nombre;
 $("#bizTag").textContent = NEGOCIO.bajada;
-$("#openTxt").textContent = NEGOCIO.abierto;
-$("#hoursTxt").textContent = "🕒 " + NEGOCIO.horario;
+
+/* ---------- horario automático ---------- */
+const DIAS = ["domingo","lunes","martes","miércoles","jueves","viernes","sábado"];
+const toMin = t => { const [h,m] = t.split(":").map(Number); return h*60 + m; };
+function ahora(){
+  const parts = new Intl.DateTimeFormat("en-US",{ timeZone: NEGOCIO.zonaHoraria, weekday:"short", hour:"2-digit", minute:"2-digit", hourCycle:"h23" }).formatToParts(new Date());
+  const g = t => parts.find(x => x.type === t).value;
+  return { dia: ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].indexOf(g("weekday")), min: Number(g("hour"))*60 + Number(g("minute")) };
+}
+function estado(){
+  const { dia, min } = ahora();
+  const H = d => NEGOCIO.horario[(d + 7) % 7] || [];
+  // tramo de hoy abierto ahora
+  let t = H(dia).find(([a,b]) => { const A = toMin(a), B = toMin(b); return B > A ? (min >= A && min < B) : min >= A; });
+  if (t) return { abierto:true, texto:`Abierto · cierra ${t[1]}` };
+  // tramo de ayer que cruza la medianoche
+  t = H(dia - 1).find(([a,b]) => toMin(b) <= toMin(a) && min < toMin(b));
+  if (t) return { abierto:true, texto:`Abierto · cierra ${t[1]}` };
+  const resto = H(dia).filter(([a]) => toMin(a) > min).sort((x,y) => toMin(x[0]) - toMin(y[0]))[0];
+  if (resto) return { abierto:false, texto:`Cerrado · abre hoy ${resto[0]}` };
+  for (let i = 1; i <= 7; i++){
+    const tr = H(dia + i);
+    if (tr.length) return { abierto:false, texto:`Cerrado · abre ${i === 1 ? "mañana" : "el " + DIAS[(dia + i) % 7]} ${tr[0][0]}` };
+  }
+  return { abierto:false, texto:"Cerrado temporalmente" };
+}
+let EST = estado();
+function pintarEstado(){
+  EST = estado();
+  const det = EST.texto.split("· ")[1] || EST.texto;
+  $("#openTxt").textContent = EST.abierto ? "Abierto ahora" : "Cerrado";
+  $("#liveDot").classList.toggle("off", !EST.abierto);
+  $("#hoursTxt").textContent = "🕒 " + det.charAt(0).toUpperCase() + det.slice(1);
+  $("#closedBox").classList.toggle("on", !EST.abierto);
+  $("#closedSub").textContent = det.charAt(0).toUpperCase() + det.slice(1) + ". Puedes mirar la carta y armar tu pedido.";
+}
+pintarEstado();
 $("#etaTxt").textContent = NEGOCIO.tiempo;
 $("#mapLink").href = NEGOCIO.mapa;
 
@@ -471,11 +518,11 @@ function buildMessage(){
   if (nota) m += `\n📝 ${nota}`;
   const now = new Date(), hh = String(now.getHours()).padStart(2,"0") + ":" + String(now.getMinutes()).padStart(2,"0");
   $("#bubble").innerHTML = escapeHTML(m).replace(/\*(.+?)\*/g, "<b>$1</b>") + `<span class="tm">${hh} ✓✓</span>`;
-  const ok = cart.length && nombre && (mode !== "Delivery" || dir);
+  const ok = EST.abierto && cart.length && nombre && (mode !== "Delivery" || dir);
   const a = $("#send");
   a.href = `https://wa.me/${NEGOCIO.whatsapp}?text=${encodeURIComponent(m)}`;
   a.classList.toggle("off", !ok);
-  $("#hint").textContent = ok ? `Se abrirá WhatsApp con tu pedido listo para +${NEGOCIO.whatsapp}`
+  $("#hint").textContent = !EST.abierto ? `Estamos cerrados. ${(EST.texto.split("· ")[1] || "").replace(/^a/,"A")}.` : ok ? `Se abrirá WhatsApp con tu pedido listo para +${NEGOCIO.whatsapp}`
     : !cart.length ? "Agrega productos para continuar" : !nombre ? "Escribe tu nombre para enviar" : "Falta tu dirección de entrega";
 }
 const escapeHTML = s => s.replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
@@ -591,6 +638,7 @@ addEventListener("scroll", () => {
 }, { passive: true });
 
 renderMenu(); refresh(); payUI();
+setInterval(() => { pintarEstado(); buildMessage(); }, 60000);
 </script>
 </body>
 </html>
